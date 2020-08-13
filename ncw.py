@@ -1,4 +1,6 @@
 import numpy as np
+import gc
+import os
 
 import batman
 import catwoman
@@ -51,7 +53,7 @@ def init_catwoman(t, ld_law, nresampling = None, etresampling = None):
          m = catwoman.TransitModel(params, t, supersample_factor=nresampling, exp_time=etresampling)
      return params,m
 
-def numerical_batman(X,Y,rp,u,npixels = 1000):
+def numerical_batman(X,Y,rp,npixels = 1000,return_star = False, verbose = False):
     """
     This function receives X and Y coordinates (in stellar units, assuming zero is at the center of the star) of the 
     position of a planet, and calculates a numerical lightcurve at each of those positions assuming a star of radius 1 
@@ -74,34 +76,91 @@ def numerical_batman(X,Y,rp,u,npixels = 1000):
         npixels: number of pixels in X and Y direction to model the star on
 
     """
+    u = [0.3,0.2]
     # Set npixels to be even:
     if npixels % 2 != 0:
         npixels = npixels + 1
 
-    # Initialize array and star radii:
-    star = np.ones([npixels, npixels])
     rpixel = npixels/2
-    # Paint limb-darekning and points outside the star with zeroes:
-    for i in range(star.shape[0]):
-        for j in range(star.shape[1]):
-            # Get distance of current point:
-            d = np.sqrt((i-rpixel)**2 + (j-rpixel)**2)
-            # If distance outside rpixel, set to zero. If not, paint limb-darkening:
-            if d > rpixel:
-                star[i,j] = 0.
-            elif (d/rpixel)**2 <= 1.:
-                mu = np.sqrt(1. - (d/rpixel)**2)
-                star[i,j] = 1. - u[0]*(1-mu) - u[1]*((1-mu)**2)
-
+    # Initialize array and star radii if not done already:
+    if os.path.exists('star_'+str(npixels)+'.npy'):
+        star = np.load('star_'+str(npixels)+'.npy')
+        star_coords_X = np.load('star_coords_X_'+str(npixels)+'.npy')
+        star_coords_Y = np.load('star_coords_Y_'+str(npixels)+'.npy')
+    else:
+        star = np.ones([npixels, npixels])
+        star_coords_X = np.ones([npixels, npixels])
+        star_coords_Y = np.ones([npixels, npixels])
+        # Paint limb-darekning and points outside the star with zeroes:
+        if verbose:
+            print('Preparing array, LD...')
+        for i in range(star.shape[0]):
+            for j in range(star.shape[1]):
+                # Get distance of current point:
+                d = np.sqrt((i-rpixel)**2 + (j-rpixel)**2)
+                # If distance outside rpixel, set to zero. If not, paint limb-darkening:
+                if d > rpixel:
+                    star[i,j] = 0.
+                elif (d/rpixel)**2 <= 1.:
+                    mu = np.sqrt(1. - (d/rpixel)**2)
+                    star[i,j] = 1. - u[0]*(1-mu) - u[1]*((1-mu)**2)
+                star_coords_X[i,j] = i
+                star_coords_Y[i,j] = j
+        if verbose:
+            print('Done!')
+        np.save('star_'+str(npixels)+'.npy',star)
+        np.save('star_coords_X_'+str(npixels)+'.npy',star_coords_X)
+        np.save('star_coords_Y_'+str(npixels)+'.npy',star_coords_Y)
     # Set out-of-transit flux:
     oot_flux = np.sum(star)
     # Set array that will save the fluxes:
     fluxes = np.array([])
+    # Set planet radius in pixel space:
+    rp_pixel = (npixels/2)*rp
+    if return_star:
+        stars = []
     # Iterate through X-coordinates
+    if verbose:
+        print('Iterating through coordinates')
     for i in range(len(X)):
         # Rescale coordinates to pixel-space:
         cX, cY = (X[i]+1)*rpixel, (Y[i]+1)*rpixel
+        if cX != 0:
+            cX -= 1
+        if cY != 0:
+            cY -= 1
+        # Check where center of the planet is. If outside the star, do nothing, 
+        # if they overlap, paint all points consistent with it as zeroes, sum relative flux 
+        # and save:
         d = np.sqrt(X[i]**2 + Y[i]**2)
         if d >= 1+rp:
             fluxes = np.append(fluxes, oot_flux)
+            if return_star:
+                stars.append(star)
         else:
+            # First, cut a square around the planetary position so we search for pixels to paint 
+            # only around that area:
+            left,right = np.max([int(cX - rp_pixel),0]), np.min([npixels-1, int(cX + rp_pixel)])
+            down,up = np.max([0, int(cY - rp_pixel)]), np.min([npixels-1, int(cY + rp_pixel)])
+            square = np.copy(star[left:right,down:up])
+            square_X = star_coords_X[left:right,down:up]
+            square_Y = star_coords_Y[left:right,down:up]
+            square_dists = np.sqrt((square_X-cX)**2 + (square_Y-cY)**2)
+            idx = np.where(square_dists <= rp_pixel)
+            if not return_star:
+                new_star = np.load('star_'+str(npixels)+'.npy')
+            else:
+                new_star = np.copy(star)
+            square[idx] = 0.
+            new_star[left:right,down:up] = square
+            if return_star:
+                stars.append(new_star)
+            fluxes = np.append(fluxes, np.sum(new_star))
+        if verbose:
+            print('Coordinate number ',i)
+    print('Done!')
+    fluxes = fluxes/oot_flux
+    if return_star:
+        return fluxes, stars
+    else:
+        return fluxes

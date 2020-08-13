@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import gc
 import os
@@ -35,13 +36,13 @@ def init_catwoman(t, ld_law, rp1 = 0.1, rp2 = 0.1, phi = 45. , nresampling = Non
      params = batman.TransitParams()
      params.t0 = 0.
      params.per = 3.
-     params.rp = 0.1
-     params.rp2 = 0.1
+     params.rp = rp1
+     params.rp2 = rp2
      params.a = 10.
      params.inc = 90.
      params.ecc = 0.
      params.w = 90.
-     params.phi = 45.
+     params.phi = phi
      if ld_law == 'linear':
          params.u = [0.5]
      else:
@@ -278,7 +279,7 @@ def numerical_catwoman(X, Y, rp1, rp2, phi, npixels = 1000, return_star = False,
         # if they overlap, paint all points consistent with it as zeroes, sum relative flux 
         # and save:
         d = np.sqrt(X[i]**2 + Y[i]**2)
-        if d >= 1+rp:
+        if d >= 1+np.max([rp1,rp2]):
             fluxes = np.append(fluxes, oot_flux)
             if return_star:
                 stars.append(star)
@@ -291,12 +292,24 @@ def numerical_catwoman(X, Y, rp1, rp2, phi, npixels = 1000, return_star = False,
             square_X = star_coords_X[left:right,down:up]
             square_Y = star_coords_Y[left:right,down:up]
             square_dists = np.sqrt((square_X-cX)**2 + (square_Y-cY)**2)
+            # Now, compute intercept of the line passing through the center of the circles:
+            b = cY - XY_slopes[i]*cX
+            # Get all points above the line
+            ys = XY_slopes[i]*square_X + b
+            above_the_line = square_Y > ys
+            below_the_line = square_Y <= ys
             # Compute angles between center of the planet and each coordinate:
-            angles_dists = np.arctan((square_Y-cY)/(square_X-cX))*(180./np.pi)
+            if i == 50:
+                #plt.imshow(above_the_line)
+                #plt.colorbar()
+                print('thetas:',thetas[i])
+                print('X,Y:',X[i],Y[i])
+                #plt.show()
+                #print(position)
             # Identify indexes to the left of the line separating the two semi-circles:
-            idx_left = np.where((square_dists <= rp1_pixel)&(angles_dists-thetas[i]>0)&(angles_dists-thetas[i]<180.))
+            idx_left = np.where((square_dists <= rp1_pixel)&(above_the_line))
             # Same, to the right:
-            idx_right = np.where((square_dists > rp2_pixel)&(angles_dists-thetas[i]<=0)&(angles_dists-thetas[i]>=-180.))
+            idx_right = np.where((square_dists < rp2_pixel)&(below_the_line))
             if not return_star:
                 new_star = np.load('star_'+str(npixels)+'.npy')
             else:

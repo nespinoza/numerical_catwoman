@@ -28,7 +28,7 @@ def init_batman(t, ld_law, nresampling = None, etresampling = None):
          m = batman.TransitModel(params, t, supersample_factor=nresampling, exp_time=etresampling)
      return params,m
 
-def init_catwoman(t, ld_law, nresampling = None, etresampling = None):
+def init_catwoman(t, ld_law, rp1 = 0.1, rp2 = 0.1, phi = 45. , nresampling = None, etresampling = None):
      """
      This function initializes the catwoman code.
      """

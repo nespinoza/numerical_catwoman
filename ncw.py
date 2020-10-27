@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import gc
 import os
@@ -6,22 +5,22 @@ import os
 import batman
 import catwoman
 
-def init_batman(t, ld_law, nresampling = None, etresampling = None):
+def init_batman(t, ld_law, rp = 0.1, inc = 90., per = 3., a = 10., ecc = 0., w = 90, u1 = 0.3, u2 = 0.2, t0 = 0., nresampling = None, etresampling = None):
      """
      This function initializes the batman code.
      """
      params = batman.TransitParams()
-     params.t0 = 0.
-     params.per = 3.
-     params.rp = 0.1
-     params.a = 10.
-     params.inc = 90.
-     params.ecc = 0.
-     params.w = 90.
+     params.t0 = t0
+     params.per = per
+     params.rp = rp
+     params.a = a
+     params.inc = inc
+     params.ecc = ecc
+     params.w = w
      if ld_law == 'linear':
          params.u = [0.5]
      else:
-         params.u = [0.3,0.2]
+         params.u = [u1, u2]
      params.limb_dark = ld_law
      if nresampling is None or etresampling is None:
          m = batman.TransitModel(params, t)
@@ -29,24 +28,24 @@ def init_batman(t, ld_law, nresampling = None, etresampling = None):
          m = batman.TransitModel(params, t, supersample_factor=nresampling, exp_time=etresampling)
      return params,m
 
-def init_catwoman(t, ld_law, rp1 = 0.1, rp2 = 0.1, phi = 45. , nresampling = None, etresampling = None):
+def init_catwoman(t, ld_law, rp1 = 0.1, rp2 = 0.1, phi = 45., inc = 90., per = 3., a = 10., ecc = 0., w = 90, u1 = 0.3, u2 = 0.2, t0 = 0., nresampling = None, etresampling = None):
      """
      This function initializes the catwoman code.
      """
      params = batman.TransitParams()
-     params.t0 = 0.
-     params.per = 3.
+     params.t0 = t0
+     params.per = per
      params.rp = rp1
      params.rp2 = rp2
-     params.a = 10.
-     params.inc = 90.
-     params.ecc = 0.
-     params.w = 90.
+     params.a = a
+     params.inc = inc
+     params.ecc = ecc
+     params.w = w
      params.phi = phi
      if ld_law == 'linear':
          params.u = [0.5]
      else:
-         params.u = [0.3,0.2]
+         params.u = [u1,u2]
      params.limb_dark = ld_law
      if nresampling is None or etresampling is None:
          m = catwoman.TransitModel(params, t)
